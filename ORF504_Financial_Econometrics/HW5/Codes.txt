@@ -1,0 +1,303 @@
+######################## HW 5 ################################
+
+###################### Problem 2 ################################
+Earnings.tot = read.csv("SP500Earnings.csv",header = TRUE)
+Dividend.tot = read.csv("SP500dividend.csv",header = TRUE)
+Dates.tot = Dividend.tot[,1]
+
+start = which(Dates.tot=="1/1/1927")
+end = which(Dates.tot=="9/1/2010")
+
+Earnings.tot = Earnings.tot[1:end,2]
+Price.tot = Dividend.tot[1:end,2]
+Dividend.tot = Dividend.tot[1:end,4]
+
+PEratio.tot = Price.tot/Earnings.tot
+logDP.tot = log(Dividend.tot/Price.tot)
+
+####### Question (a)
+Dates = strptime(Dates.tot[start:end], "%m/%d/%Y")
+plot(Dates, PEratio.tot[start:end], "l", xlab="Time", ylab="PE Ratio", main="Time series plot of PE ratios")
+
+####### Question (b)
+Period1 = which(Dates.tot=="1/1/1927"):which(Dates.tot=="12/1/1950")
+Period2 = which(Dates.tot=="1/1/1951"):which(Dates.tot=="12/1/1980")
+Period3 = which(Dates.tot=="1/1/1981"):which(Dates.tot=="9/1/2010")
+
+beta = matrix(0,3,6)
+Rsq = matrix(0,3,6)
+t.stat = matrix(0,3,6)
+par(mfrow=c(3,2), mar=c(2, 4, 2, 1))
+
+for(m in 1:3) {
+	if(m==1) Period = Period1
+	if(m==2) Period = Period2
+	if(m==3) Period = Period3	
+
+	PEratio = PEratio.tot[Period]
+	Price = Price.tot[Period]	
+	Return = log(Price[2:length(Price)]/Price[1:(length(Price)-1)])
+
+	Klist = c(1,3,12,24,36,48)
+
+	for(j in 1:6){
+		K = Klist[j]
+		T =length(Return)-K+1
+		
+		ReturnTH = numeric(T)
+		for(t in 1:T){
+			ReturnTH[t] = sum(Return[t:(t+K-1)])
+		}
+		PEratioTH = PEratio[1:T]
+
+		fit = lm(ReturnTH ~ PEratioTH)
+		eps = fit$res
+
+		Rsq[m,j] = summary(fit)$r.squared
+		beta[m,j] = fit$coeff[2]
+		
+		X = cbind(1,PEratioTH)             # Newey-West Estimator
+		S_T = 1/T * t(X) %*% X
+		S_T_0 = matrix(0,2,2)
+		for(t in 1:T){
+			S_T_0 =S_T_0 + 2*eps[t]^2*(X[t,] %*% t(X[t,]))
+		}
+		S_T_0 = S_T_0/T
+		S_T_1 = matrix(0,2,2)
+		for(t in 1:(T-1)){
+			S_T_1 =S_T_1 + eps[t]*eps[t+1]*(X[t,]%*%t(X[t+1,])+X[t+1,]%*%t(X[t,]))
+		}
+		S_T_1 = S_T_1/T		
+		Var = 1/T*solve(S_T)%*%(S_T_0 + 0.5*S_T_1)%*%solve(S_T)
+
+		t.stat[m,j] = beta[m,j]/sqrt(Var[2,2])		
+		
+		plot(PEratioTH, ReturnTH, pch = 20, main = paste(K,"-month horizon", sep=""), ylab="Return", xlab="")
+		lines(PEratioTH, fit$fitted)
+	}
+}
+
+
+####### Question (c)
+beta_PE = matrix(0,3,6)
+beta_DP = matrix(0,3,6)
+Rsq = matrix(0,3,6)
+t.stat_PE = matrix(0,3,6)
+t.stat_DP = matrix(0,3,6)
+
+for(m in 1:3) {
+	if(m==1) Period = Period1
+	if(m==2) Period = Period2
+	if(m==3) Period = Period3	
+
+	logDP = logDP.tot[Period]
+	PEratio = PEratio.tot[Period]
+	Price = Price.tot[Period]	
+	Return = log(Price[2:length(Price)]/Price[1:(length(Price)-1)])
+
+	Klist = c(1,3,12,24,36,48)
+
+	for(j in 1:6){
+		K = Klist[j]
+		T =length(Return)-K+1
+		
+		ReturnTH = numeric(T)
+		for(t in 1:T){
+			ReturnTH[t] = sum(Return[t:(t+K-1)])
+		}
+		PEratioTH = PEratio[1:T]
+		logDPTH = logDP[1:T]
+
+		fit = lm(ReturnTH ~ PEratioTH + logDPTH)
+		eps = fit$res
+
+		Rsq[m,j] = summary(fit)$r.squared
+		beta_PE[m,j] = fit$coeff[2]
+		beta_DP[m,j] = fit$coeff[3]
+		
+		X = cbind(1,PEratioTH,logDPTH)        # Newey-West Estimator
+		S_T = 1/T * t(X) %*% X
+		S_T_0 = matrix(0,3,3)
+		for(t in 1:T){
+			S_T_0 =S_T_0 + 2*eps[t]^2*(X[t,] %*% t(X[t,]))
+		}
+		S_T_0 = S_T_0/T
+		S_T_1 = matrix(0,3,3)
+		for(t in 1:(T-1)){
+			S_T_1 =S_T_1 + eps[t]*eps[t+1]*(X[t,]%*%t(X[t+1,])+X[t+1,]%*%t(X[t,]))
+		}
+		S_T_1 = S_T_1/T
+		S_T_2 = matrix(0,3,3)
+		for(t in 1:(T-2)){
+			S_T_2 =S_T_2 + eps[t]*eps[t+2]*(X[t,]%*%t(X[t+2,])+X[t+2,]%*%t(X[t,]))
+		}
+		S_T_2 = S_T_2/T	
+		Var = 1/T*solve(S_T)%*%(S_T_0 + 2/3*S_T_1 + 1/3*S_T_2)%*%solve(S_T)
+
+		t.stat_PE[m,j] = beta_PE[m,j]/sqrt(Var[2,2])
+		t.stat_DP[m,j] = beta_DP[m,j]/sqrt(Var[3,3])		
+	}
+}
+
+
+###################### Problem 3 ################################
+r = 0.04
+sigma = 0.34
+K = 25
+T = 0.5
+S_0 = 20
+
+######## Question (a)
+C = function(S0, r, K, T, sigma){
+	d1 = (log(S0/K)+(r+sigma^2/2)*T)/sigma/sqrt(T)
+	d2 = d1 - sigma*sqrt(T)
+	S0*pnorm(d1)-K*exp(-r*T)*pnorm(d2)
+}
+C(S_0, r, K, T, sigma)
+
+######## Question (b)
+n = 1000
+Z = rnorm(n)
+S_T = exp(log(S_0)+(r-sigma^2/2)*T + sigma*sqrt(T)*Z)
+payoff = S_T-K
+payoff[payoff <= 0] = 0
+
+C_sim = exp(-r*T)*mean(payoff)
+C_sd_sim = exp(-r*T)*sd(payoff)/sqrt(n)
+
+######## Question (c)
+ZZ = c(Z,-Z)
+S_T = exp(log(S_0)+(r-sigma^2/2)*T + sigma*sqrt(T)*ZZ)
+payoff = S_T-K
+payoff[payoff <= 0] = 0
+
+C_anti = exp(-r*T)*mean(payoff)
+C_sd_anti = exp(-r*T)*sd(payoff[1:n]+payoff[(n+1):(2*n)])/sqrt(n)/2
+
+######### Question (d)
+mu = exp(log(S_0)+(r-sigma^2/2)*T+ sigma^2/2*T)
+S_T = exp(log(S_0)+(r-sigma^2/2)*T + sigma*sqrt(T)*Z)
+payoff = S_T - K
+payoff[payoff <= 0] = 0
+
+b = -cov(S_T, payoff)/var(S_T)
+C_ctrl = exp(-r*T)*mean(payoff + b*(S_T - mu))
+C_sd_ctrl = exp(-r*T)*sd(payoff)*(1-cor(payoff,S_T)^2)/sqrt(n)
+
+###################### Problem 4 ################################
+r = 0.05
+sigma = 0.2
+T = 0.25
+S_0 = 1.2
+
+######## Question (a)
+alpha = r - sigma^2/2
+beta = r + sigma^2/2
+C = 1/r*alpha*S_0*exp(-r*T)*pnorm(-sqrt(T)*alpha/sigma) + 1/r*beta*S_0*(1-pnorm(-sqrt(T)*beta/sigma)) - S_0
+
+######## Question (b)
+delta = 1/4/6.5/252
+N = T/delta
+
+m = 400       # also 400 simulations
+payoff = numeric(m)   
+payoff_anti = numeric(m)  
+for(i in 1:m){
+	Z = rnorm(N)
+	
+	X = (r-sigma^2/2)*delta + sqrt(delta)*sigma*Z
+	S = S_0*exp(cumsum(X))
+	payoff[i] = max(S)-S_0
+
+	X_anti = (r-sigma^2/2)*delta + sqrt(delta)*sigma*(-Z)
+	S_anti = S_0*exp(cumsum(X_anti))
+	payoff_anti[i] = max(S_anti)-S_0
+}
+
+C_sim = exp(-r*T)*mean(payoff)
+C_sd_sim = exp(-r*T)*sd(payoff)/sqrt(m)
+
+######## Question (c)
+C_anti = exp(-r*T)*mean(c(payoff, payoff_anti))
+C_sd_anti = exp(-r*T)*sd(payoff + payoff_anti)/sqrt(m)/2
+
+
+###################### Problem 6 ################################
+SP500 = read.csv("SP500Daily.csv")
+
+######## Question (a)
+N = 100  # 100 or 500 trading data
+delta = 1/252
+
+Price = SP500[N:1,7]
+Return = diff(log(Price))
+
+sigma.Implied = sqrt(var(Return)/delta)
+SE.sigma2 = sqrt(2*sigma^4/(N-1))
+
+######## Question (b)
+r = 0.03
+S0 = 1200
+K = 1300
+T = 1
+
+d1 = (log(S0/K)+(r+sigma.Implied^2/2)*T)/sigma.Implied/sqrt(T)
+d2 = d1 - sigma.Implied*sqrt(T)
+C = S0*pnorm(d1)-K*exp(-r*T)*pnorm(d2)
+
+C.avar = 1/(N-1)*T*S0^2*sigma.Implied^2*dnorm(d1)^2/2
+C.SE = sqrt(C.avar)
+
+
+###################### Problem 7 ################################
+Treasury = read.csv("5ytcmWeekly.csv")
+r = Treasury[,2]
+
+######## Question (a)
+n = length(r)
+delta = 1/52
+
+alpha = mean(r)
+rho = sum((r[2:n]-alpha)*(r[1:(n-1)]-alpha))/sum((r[1:(n-1)]-alpha)^2)
+eps = r[2:n]-alpha-rho*(r[1:(n-1)]-alpha)
+sigma2.delta = 1/n*sum(eps^2)
+
+kappa = -1/delta*log(rho)
+sigma2 = 2*kappa*sigma2.delta/(1-exp(-2*kappa*delta))
+
+######## Question (b)
+y = diff(r)
+x = r[1:(n-1)]
+
+fit = lsfit(x,y)    # equally weighted version (OLS)
+a = fit$coeff[1]
+b = fit$coeff[2]
+kappa = -b/delta
+alpha = -a/b
+sigma2 = sum(fit$res^2)/(n-1)/delta
+
+######## Question (c)
+fit = lsfit(x,y,wt=1/x)    # inversely weighted version
+a = fit$coeff[1]
+b = fit$coeff[2]
+kappa = -b/delta
+alpha = -a/b
+sigma2 = sum(fit$res^2/x)/(n-1)/delta
+
+######## Question (d)
+y = 2*diff(r[1:(n-1)]) - 1/2*diff(r,2)
+x = r[1:(n-2)]
+
+fit = lsfit(x,y,wt=1/x)    # inversely weighted version
+a = fit$coeff[1]
+b = fit$coeff[2]
+kappa = -b/delta
+alpha = -a/b
+sigma2 = sum(fit$res^2/x)/(n-2)/delta
+
+
+
+
+
+
+

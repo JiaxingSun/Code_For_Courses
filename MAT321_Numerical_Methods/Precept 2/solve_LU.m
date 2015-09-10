@@ -1,0 +1,1 @@
+A = rand (500 ,500); x_exact = rand (500 ,1); b = A*x_exact;tic; x_ml = A \ b; tocerror_ml = norm(x_ml - x_exact)/norm(x_exact)tic; [L,U,P] = lu(A);x_plu = U \ (L \ (P*b)); tocerror_plu = norm(x_plu - x_exact)/norm(x_exact)
